@@ -233,40 +233,39 @@
                         $timeout.cancel(promise);
                     }, (delay || 300));
                 }
+            }
 
-                function _documentKeyDown() {
-                    // hide inactive dropdowns when multiple auto complete exist on a page
-                    internalService.hideAllInactive();
+            function _documentKeyDown() {
+                // hide inactive dropdowns when multiple auto complete exist on a page
+                internalService.hideAllInactive();
+            }
+
+            function _documentClick(event) {
+                // hide inactive dropdowns when multiple auto complete exist on a page
+                internalService.hideAllInactive();
+
+                // ignore inline
+                if (ctrl.isInline()) {
+                    return;
                 }
 
-                function _documentClick(event) {
-                    // hide inactive dropdowns when multiple auto complete exist on a page
-                    internalService.hideAllInactive();
-
-                    // ignore inline
-                    if (ctrl.isInline()) {
-                        return;
-                    }
-
-                    // no container. probably destroyed in scope $destroy
-                    if (!ctrl.container) {
-                        return;
-                    }
-
-                    // ignore target click
-                    if (event.target === ctrl.target[0]) {
-                        event.stopPropagation();
-                        return;
-                    }
-
-                    if (ctrl.container.has(event.target).length > 0) {
-                        event.stopPropagation();
-                        return;
-                    }
-
-                    ctrl.hide();
+                // no container. probably destroyed in scope $destroy
+                if (!ctrl.container) {
+                    return;
                 }
 
+                // ignore target click
+                if (event.target === ctrl.target[0]) {
+                    event.stopPropagation();
+                    return;
+                }
+
+                if (ctrl.container.has(event.target).length > 0) {
+                    event.stopPropagation();
+                    return;
+                }
+
+                ctrl.hide();
             }
 
             function onKeydown(event) {
