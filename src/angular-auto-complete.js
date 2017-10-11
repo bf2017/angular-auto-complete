@@ -19,6 +19,27 @@
     angular
         .module('autoCompleteModule', ['ngSanitize'])
         .service('autoCompleteService', autoCompleteService)
+        .directive('bindHtmlCompile', ['$compile', function ($compile) {
+            return {
+                restrict: 'A',
+                link: function (scope, element, attrs) {
+                    scope.$watch(function () {
+                        return scope.$eval(attrs.bindHtmlCompile);
+                    }, function (value) {
+                        // In case value is a TrustedValueHolderType, sometimes it
+                        // needs to be explicitly called into a string in order to
+                        // get the HTML string.
+                        element.html(value && value.toString());
+                        // If scope is provided use it, otherwise use parent scope
+                        var compileScope = scope;
+                        if (attrs.bindHtmlScope) {
+                            compileScope = scope.$eval(attrs.bindHtmlScope);
+                        }
+                        $compile(element.contents())(compileScope);
+                    });
+                }
+            };
+        }])
         .directive('autoComplete', autoCompleteDirective);
 
     autoCompleteDirective.$inject = ['$compile', '$document', '$window', '$timeout'];
@@ -88,7 +109,7 @@
                 html += '             ng-click="ctrl.selectItem($index, true)"';
                 html += '             class="auto-complete-item" data-index="{{ $index }}"';
                 html += '             ng-class="ctrl.getSelectedCssClass($index)">';
-                html += '                 <div ng-bind-html="item.label"></div>';
+                html += '                 <div bind-html-compile="item.label"></div>';
                 html += '         </li>';
                 html += '     </ul>';
                 html += '</div>';
@@ -121,36 +142,22 @@
                 });
 
                 // hide container on ENTER
-                $document.on('keydown', function (event) {
-                    var $event = event;
-                    scope.$evalAsync(function () {
-                        _documentKeyDown($event);
-                    });
-                });
+                $document.on('keydown', onKeydown);
 
-                angular.element($window).on('resize', function () {
-                    scope.$evalAsync(function () {
-                        ctrl.hide();
-                    });
-                });
+                $document.on('click', onDocClick);
 
-                $document.on('click', function (event) {
-                    var $event = event;
-                    scope.$evalAsync(function () {
-                        _documentClick($event);
-                    });
-                });
+                angular.element($window).on('resize', onResize);
 
                 function _ignoreKeyCode(keyCode) {
                     return [
-                            KEYCODE.TAB,
-                            KEYCODE.ALT,
-                            KEYCODE.CTRL,
-                            KEYCODE.LEFTARROW,
-                            KEYCODE.RIGHTARROW,
-                            KEYCODE.MAC_COMMAND_LEFT,
-                            KEYCODE.MAC_COMMAND_RIGHT
-                        ].indexOf(keyCode) !== -1;
+                        KEYCODE.TAB,
+                        KEYCODE.ALT,
+                        KEYCODE.CTRL,
+                        KEYCODE.LEFTARROW,
+                        KEYCODE.RIGHTARROW,
+                        KEYCODE.MAC_COMMAND_LEFT,
+                        KEYCODE.MAC_COMMAND_RIGHT
+                    ].indexOf(keyCode) !== -1;
                 }
 
                 function _elementKeyDown(event) {
@@ -262,12 +269,36 @@
 
             }
 
+            function onKeydown(event) {
+                var $event = event;
+                scope.$evalAsync(function () {
+                    _documentKeyDown($event);
+                });
+            }
+
+            function onResize() {
+                scope.$evalAsync(function () {
+                    ctrl.hide();
+                });
+            }
+
+            function onDocClick(event) {
+                var $event = event;
+                scope.$evalAsync(function () {
+                    _documentClick($event);
+                });
+            }
+
             // cleanup on destroy
             var destroyFn = scope.$on('$destroy', function () {
                 if (ctrl.container) {
                     ctrl.container.remove();
                     ctrl.container = null;
                 }
+
+                $document.off('keydown', onKeydown);
+                $document.off('click', onDocClick);
+                angular.element($window).off('resize', onResize);
 
                 destroyFn();
             });
@@ -314,7 +345,6 @@
                     if (value && term !== value) {
                         return;
                     }
-
                     that.renderList(result, term);
 
                     // callback
@@ -575,7 +605,13 @@
             return $templateRequest(that.options.itemTemplateUrl)
                 .then(function (content) {
                     // delegate to local function
-                    return _renderItem.bind(null, $interpolate(content, false));
+                    return function (data) {
+                        var value = (angular.isObject(data) && that.options.selectedTextAttr) ? data[that.options.selectedTextAttr] : data;
+                        return {
+                            value: value,
+                            label: $sce.trustAsHtml(content)
+                        };
+                    }
                 })
                 .catch($exceptionHandler)
                 .catch(angular.noop);
